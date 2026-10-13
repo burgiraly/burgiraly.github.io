@@ -13,7 +13,7 @@
 <meta name="application-name" content="burgiraly">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
@@ -28,8 +28,7 @@
     --bar:linear-gradient(90deg,var(--ketchup),#e2712a 45%,var(--gold));
     --display:"Bagel Fat One",system-ui,sans-serif;
     --thin:"Outfit",system-ui,sans-serif;
-    --gap:0px;  /* iOS 18 hiba: főképernyős módban alul ennyivel rövidebb az ablak */
-    --safe-b:max(0px, calc(env(safe-area-inset-bottom) - var(--gap)));
+    --safe-b:env(safe-area-inset-bottom);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   /* nagyítás tiltása mindenhol (dupla koppintás is), kivéve a térképet */
@@ -149,7 +148,7 @@
   .l-foot{text-align:center;font-size:12px;color:var(--nardo-mid);padding:22px 24px 0}
 
   /* ---------- FRISSÍTÉS ---------- */
-  .upd{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translate(-50%,-400%);background:var(--black);color:var(--cream);padding:8px 8px 8px 16px;border-radius:99px;font-size:14px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:transform .35s cubic-bezier(.2,.9,.25,1);z-index:60;white-space:nowrap}
+  .upd{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-160%);background:var(--black);color:var(--cream);padding:8px 8px 8px 16px;border-radius:99px;font-size:14px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:transform .35s cubic-bezier(.2,.9,.25,1);z-index:60;white-space:nowrap}
   .upd.show{transform:translate(-50%,0)}
   .upd button{background:var(--gold);color:var(--black);font-weight:600;padding:7px 14px;border-radius:99px}
   .ver{font-size:11px;color:#4a4c4c;margin-top:10px;letter-spacing:.02em}
@@ -672,14 +671,14 @@ document.addEventListener("touchend", e => {
 /* =========================================================
    9) FRISSÍTÉS – új verzió figyelése, hogy ne kelljen újratelepíteni
    ========================================================= */
-const APP_VERSION = "2026-10-13.7";
+const APP_VERSION = "2026-10-13.8";
 function hardReload(){ location.replace(location.pathname + "?v=" + Date.now()); }
 $("#upd-go").onclick = hardReload;
 $("#refresh").onclick = hardReload;
 $("#ver").textContent = "verzió " + APP_VERSION;
 function showDiag(){
   const cs = getComputedStyle($("#probe"));
-  $("#diag").textContent = `ih ${innerHeight} · vv ${Math.round(window.visualViewport ? visualViewport.height : 0)} · sh ${screen.height} · t ${parseInt(cs.paddingTop)} · b ${parseInt(cs.paddingBottom)} · g ${getComputedStyle(document.documentElement).getPropertyValue("--gap").trim()} · ${navigator.standalone ? "app" : "web"} · ${(navigator.userAgent.match(/OS (\d+[_\d]*)/)||["",""])[1].replace(/_/g,".")}`;
+  $("#diag").textContent = `ih ${innerHeight} · vv ${Math.round(window.visualViewport ? visualViewport.height : 0)} · sh ${screen.height} · t ${parseInt(cs.paddingTop)} · b ${parseInt(cs.paddingBottom)} · ${navigator.standalone ? "app" : "web"} · ${(navigator.userAgent.match(/OS (\d+[_\d]*)/)||["",""])[1].replace(/_/g,".")}`;
 }
 showDiag(); window.addEventListener("resize", showDiag);
 async function checkUpdate(){
@@ -693,18 +692,6 @@ checkUpdate();
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
 if (/[?&]v=\d/.test(location.search)) history.replaceState(null, "", location.pathname);   // tiszta cím frissítés után
 
-/* iOS 18 főképernyős módban az ablak alul rövidebb a kijelzőnél (a felső sáv magasságával).
-   Ezt a sávot nem tudjuk használni, de a menüt lejjebb engedjük, és a sáv színét a képernyőhöz igazítjuk. */
-function fixGap(){
-  const portrait = window.matchMedia("(orientation: portrait)").matches;
-  const gap = screen.height - window.innerHeight;
-  const g = (navigator.standalone && portrait && gap > 20 && gap < 120) ? gap : 0;
-  document.documentElement.style.setProperty("--gap", g + "px");
-  if (typeof showDiag === "function") showDiag();
-}
-fixGap();
-window.addEventListener("resize", fixGap);
-window.addEventListener("orientationchange", () => setTimeout(fixGap, 300));
 document.documentElement.style.background = "#9c9e9d";
 
 load(); renderMeters(); renderList(); startHero();
