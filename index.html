@@ -28,7 +28,8 @@
     --bar:linear-gradient(90deg,var(--ketchup),#e2712a 45%,var(--gold));
     --display:"Bagel Fat One",system-ui,sans-serif;
     --thin:"Outfit",system-ui,sans-serif;
-    --safe-b:env(safe-area-inset-bottom);
+    --gap:0px;  /* iOS 18 hiba: főképernyős módban alul ennyivel rövidebb az ablak */
+    --safe-b:max(0px, calc(env(safe-area-inset-bottom) - var(--gap)));
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   /* nagyítás tiltása mindenhol (dupla koppintás is), kivéve a térképet */
@@ -641,6 +642,7 @@ $$(".nav button").forEach(b => b.onclick = () => {
   $$(".view").forEach(s => s.classList.toggle("active", s.id === v));
   $("#row").classList.toggle("hidden", v !== "counter");
   document.body.classList.toggle("dark", v !== "counter");
+  document.documentElement.style.background = v === "counter" ? "#9c9e9d" : v === "map-view" ? "#232323" : "#0d0d0d";
   document.querySelector('meta[name="theme-color"]').content = v === "counter" ? "#9c9e9d" : "#0d0d0d";
   $("#toast").classList.remove("show");
   if (v === "map-view") setTimeout(() => {
@@ -670,14 +672,14 @@ document.addEventListener("touchend", e => {
 /* =========================================================
    9) FRISSÍTÉS – új verzió figyelése, hogy ne kelljen újratelepíteni
    ========================================================= */
-const APP_VERSION = "2026-10-13.6";
+const APP_VERSION = "2026-10-13.7";
 function hardReload(){ location.replace(location.pathname + "?v=" + Date.now()); }
 $("#upd-go").onclick = hardReload;
 $("#refresh").onclick = hardReload;
 $("#ver").textContent = "verzió " + APP_VERSION;
 function showDiag(){
   const cs = getComputedStyle($("#probe"));
-  $("#diag").textContent = `ih ${innerHeight} · vv ${Math.round(window.visualViewport ? visualViewport.height : 0)} · sh ${screen.height} · t ${parseInt(cs.paddingTop)} · b ${parseInt(cs.paddingBottom)} · ${navigator.standalone ? "app" : "web"} · ${(navigator.userAgent.match(/OS (\d+[_\d]*)/)||["",""])[1].replace(/_/g,".")}`;
+  $("#diag").textContent = `ih ${innerHeight} · vv ${Math.round(window.visualViewport ? visualViewport.height : 0)} · sh ${screen.height} · t ${parseInt(cs.paddingTop)} · b ${parseInt(cs.paddingBottom)} · g ${getComputedStyle(document.documentElement).getPropertyValue("--gap").trim()} · ${navigator.standalone ? "app" : "web"} · ${(navigator.userAgent.match(/OS (\d+[_\d]*)/)||["",""])[1].replace(/_/g,".")}`;
 }
 showDiag(); window.addEventListener("resize", showDiag);
 async function checkUpdate(){
@@ -690,6 +692,20 @@ async function checkUpdate(){
 checkUpdate();
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
 if (/[?&]v=\d/.test(location.search)) history.replaceState(null, "", location.pathname);   // tiszta cím frissítés után
+
+/* iOS 18 főképernyős módban az ablak alul rövidebb a kijelzőnél (a felső sáv magasságával).
+   Ezt a sávot nem tudjuk használni, de a menüt lejjebb engedjük, és a sáv színét a képernyőhöz igazítjuk. */
+function fixGap(){
+  const portrait = window.matchMedia("(orientation: portrait)").matches;
+  const gap = screen.height - window.innerHeight;
+  const g = (navigator.standalone && portrait && gap > 20 && gap < 120) ? gap : 0;
+  document.documentElement.style.setProperty("--gap", g + "px");
+  if (typeof showDiag === "function") showDiag();
+}
+fixGap();
+window.addEventListener("resize", fixGap);
+window.addEventListener("orientationchange", () => setTimeout(fixGap, 300));
+document.documentElement.style.background = "#9c9e9d";
 
 load(); renderMeters(); renderList(); startHero();
 </script>
