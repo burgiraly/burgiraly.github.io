@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>beteszemaszamba</title>
+<meta name="description" content="Burger- és sörszámláló, térkép és the list – a @burgiraly appja.">
+<meta name="theme-color" content="#9c9e9d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍔</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  /* ===== ARCULAT: nardo + cheddar =====
+     Nardo Grey számláló · fekete lista és menü · Summit Gold gomb · ketchup piros csak elvétve */
+  :root{
+    --nardo:#9c9e9d; --nardo-mid:#8e9090; --black:#0d0d0d; --black-2:#1a1b1b; --line:#1e1e1e;
+    --ink-soft:#353737; --cream:#ecedea; --knob:#c9cbca;
+    --gold:#f5b51f; --ketchup:#c8102e;
+    --bar:linear-gradient(90deg,var(--ketchup),#e2712a 45%,var(--gold));
+    --display:"Bagel Fat One",system-ui,sans-serif;
+    --thin:"Outfit",system-ui,sans-serif;
+    --safe-b:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--nardo);color:var(--black);font-family:var(--thin);font-weight:300;letter-spacing:-.01em}
+  body{overflow:hidden}
+  body.dark{background:var(--black)}
+  button,input{font:inherit;color:inherit;letter-spacing:inherit}
+  button{border:0;background:none;cursor:pointer}
+
+  .view{position:fixed;inset:0;display:none;max-width:560px;margin:0 auto}
+  .view.active{display:block}
+
+  /* ---------- SZÁMLÁLÓ ---------- */
+  #counter{background:var(--nardo)}
+  .c-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:calc(env(safe-area-inset-top) + clamp(20px, 6vh, 56px)) 0 calc(var(--safe-b) + 150px)}
+  .hero{width:92px;height:92px;flex-shrink:0;display:grid;place-items:center}
+  .hero canvas{width:92px;height:92px;image-rendering:pixelated}
+  .hero .fallback{font-family:var(--display);font-size:15px}
+  .meters{width:100%;flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+  .meters-in{width:100%;height:292px;max-height:100%;overflow-y:auto;scroll-snap-type:y mandatory;scrollbar-width:none}
+  .meters-in::-webkit-scrollbar{display:none}
+  .meters-in.many{-webkit-mask-image:linear-gradient(#000 86%,transparent);mask-image:linear-gradient(#000 86%,transparent)}
+  .m{height:146px;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .lbl{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:6px}
+  .del{font-size:13px;line-height:1;color:var(--ink-soft);opacity:.6;padding:2px 4px}
+  .num{font-family:var(--display);font-size:56px;line-height:1;margin:4px 0 14px;font-variant-numeric:tabular-nums}
+  .bar{position:relative;width:150px;height:3px}
+  .bar i{position:absolute;inset:0;border-radius:9px;background:var(--bar);clip-path:inset(0 100% 0 0 round 9px);transition:clip-path .6s cubic-bezier(.2,.8,.2,1)}
+  .bar svg{position:absolute;top:50%;left:0;width:7px;height:10px;margin:-5px 0 0 -3.5px;overflow:visible;transition:left .6s cubic-bezier(.2,.8,.2,1)}
+  .bar polygon{fill:var(--knob);stroke:var(--black);stroke-width:1;stroke-linejoin:miter}
+  .more{font-size:11px;color:var(--ink-soft);opacity:0;transition:opacity .2s;height:14px;margin-top:4px}
+  .more.show{opacity:.8}
+
+  .row{position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:560px;bottom:calc(var(--safe-b) + 88px);height:48px;display:flex;align-items:center;justify-content:center;padding:0 24px;z-index:20}
+  .fab{position:absolute;left:24px;top:6px;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--black);display:grid;place-items:center;font-size:20px;font-weight:300;line-height:1}
+  .btn{width:168px;height:48px;border-radius:99px;background:var(--gold);border:1.5px solid var(--black);color:var(--black);font-weight:600;font-size:16px;transition:transform .1s}
+  .btn:active,.fab:active{transform:scale(.96)}
+  .row.hidden{display:none}
+
+  /* ---------- MENÜ (lebegő buborék) ---------- */
+  .nav{position:fixed;left:50%;bottom:calc(var(--safe-b) + 18px);transform:translateX(-50%);display:flex;gap:2px;padding:5px;border-radius:99px;background:var(--black);box-shadow:0 8px 24px rgba(0,0,0,.28);z-index:30}
+  body.dark .nav{background:var(--black-2)}
+  .nav button{padding:10px 16px;border-radius:99px;font-size:14px;color:var(--nardo-mid);white-space:nowrap;transition:background .2s,color .2s}
+  .nav button.on{background:var(--gold);color:var(--black);font-weight:600}
+
+  /* ---------- ABLAKOK ---------- */
+  .veil{position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+  .veil.open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:50%;bottom:0;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;background:var(--black);color:var(--cream);border-radius:28px 28px 0 0;padding:12px 24px calc(var(--safe-b) + 24px);transform:translate(-50%,105%);transition:transform .3s cubic-bezier(.2,.9,.25,1);z-index:41}
+  .sheet.open{transform:translate(-50%,0)}
+  .grab{width:40px;height:4px;border-radius:9px;background:#333;margin:0 auto 16px}
+  .sheet h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 8px;letter-spacing:0}
+  .step{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid #222}
+  .step-name{font-size:17px;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ctrl{display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .round{width:42px;height:42px;border-radius:50%;border:1.5px solid #555;font-size:22px;display:grid;place-items:center;transition:transform .1s}
+  .round:active{transform:scale(.92)}
+  .round.plus{background:var(--gold);border-color:var(--gold);color:var(--black)}
+  .qty{font-family:var(--display);font-size:28px;min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+  .qty.neg{color:var(--ketchup)}
+  .save{margin-top:16px;width:100%;height:52px;border-radius:99px;background:var(--gold);border:1.5px solid var(--gold);color:var(--black);font-weight:600;font-size:17px;transition:opacity .2s}
+  .save:disabled{opacity:.35}
+  .hint{font-size:13px;color:var(--nardo-mid);margin:0 0 6px}
+  .field{width:100%;height:50px;border-radius:16px;border:1.5px solid #333;background:#161616;color:var(--cream);padding:0 16px;font-size:17px;outline:none}
+  .field:focus{border-color:var(--gold)}
+
+  .toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 150px);transform:translate(-50%,16px);background:var(--black);color:var(--cream);padding:11px 16px;border-radius:99px;font-size:14px;display:flex;gap:14px;align-items:center;opacity:0;pointer-events:none;transition:.25s;z-index:35;white-space:nowrap;max-width:calc(100% - 40px)}
+  .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+  #toast-text{overflow:hidden;text-overflow:ellipsis}
+  .toast button{font-weight:600;color:var(--gold)}
+
+  /* ---------- TÉRKÉP ---------- */
+  #map-view{background:var(--black)}
+  #map{position:absolute;inset:0;background:#1b1b1b}
+  #map .leaflet-tile-pane{filter:grayscale(1) contrast(1.05) brightness(.95)}
+  .map-top{position:absolute;top:calc(env(safe-area-inset-top) + 14px);left:0;right:0;z-index:500;display:flex;gap:6px;justify-content:center}
+  .chip{background:rgba(13,13,13,.9);color:var(--nardo-mid);padding:9px 15px;border-radius:99px;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+  .chip.on{background:var(--gold);color:var(--black);font-weight:600}
+  .pin{width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);display:grid;place-items:center;border:1.5px solid var(--black);box-shadow:0 3px 8px rgba(0,0,0,.45)}
+  .pin span{transform:rotate(45deg);font-family:var(--display);font-size:11px;color:var(--black)}
+  .pin.closed{background:var(--knob)!important}
+  .leaflet-popup-content-wrapper{background:var(--black);color:var(--cream);border-radius:18px}
+  .leaflet-popup-tip{background:var(--black)}
+  .leaflet-popup-content{margin:14px 16px;font-family:var(--thin);letter-spacing:-.01em}
+  .leaflet-container a.leaflet-popup-close-button{color:var(--nardo-mid)}
+  .pop-name{font-family:var(--display);font-size:19px;line-height:1.1}
+  .pop-city{color:var(--nardo-mid);font-size:13px;margin:2px 0 10px}
+  .pop-score{display:inline-block;font-family:var(--display);font-size:20px;padding:1px 9px;border:1.5px solid currentColor;border-radius:8px}
+  .pop-avg{font-size:12px;color:var(--nardo-mid);margin-left:6px}
+  .pop-list{margin:10px 0 0;padding:0;list-style:none;font-size:13px}
+  .pop-list li{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-top:1px solid #222}
+  .pop-badge{margin-top:8px;font-size:11px;font-weight:600;color:var(--ketchup)}
+  .pop-ig{display:inline-block;margin-top:10px;color:var(--gold)!important;font-weight:600;font-size:13px}
+  .pop-approx{font-size:11px;color:var(--nardo-mid);margin-top:6px}
+  .map-msg{position:absolute;left:16px;right:16px;top:80px;z-index:600;background:var(--black);color:var(--nardo-mid);border-radius:16px;padding:14px 16px;font-size:14px}
+  .leaflet-control-attribution{background:rgba(13,13,13,.7)!important;color:var(--nardo-mid)!important;font-size:10px}
+  .leaflet-control-attribution a{color:var(--nardo-mid)!important}
+  .leaflet-bottom.leaflet-right{bottom:calc(var(--safe-b) + 76px)}
+  .leaflet-bar a{background:var(--black);color:var(--cream);border-color:#222}
+
+  /* ---------- THE LIST ---------- */
+  #list{background:var(--black);color:var(--cream);overflow-y:auto;padding-bottom:calc(var(--safe-b) + 100px)}
+  .l-head{padding:calc(env(safe-area-inset-top) + 30px) 24px 20px;text-align:center}
+  .kick{font-size:12px;color:var(--gold)}
+  .l-head h1{font-family:var(--display);font-weight:400;font-size:clamp(38px,11vw,52px);line-height:.98;margin:8px 0 8px;letter-spacing:0}
+  .l-head h1 em{font-style:normal;color:var(--gold)}
+  .l-sub{font-size:13px;color:var(--nardo-mid)}
+  .gigs{list-style:none;margin:0;padding:0}
+  .gig{display:grid;grid-template-columns:30px 1fr auto;gap:12px;align-items:center;padding:13px 24px;border-top:1px solid var(--line)}
+  .gig .n{font-family:var(--display);color:#3a3a3a;font-size:15px;font-variant-numeric:tabular-nums}
+  .gig .t{font-family:var(--display);font-size:17px;line-height:1.12;word-break:break-word;letter-spacing:0}
+  .gig .c{font-size:12px;color:var(--nardo-mid);margin-top:3px}
+  .gig .s{font-family:var(--display);font-size:15px;padding:3px 9px;border:1.5px solid currentColor;border-radius:8px;white-space:nowrap}
+  .stamp{font-size:11px;font-weight:600;color:var(--ketchup);margin-right:6px}
+  .l-foot{text-align:center;font-size:12px;color:var(--nardo-mid);padding:22px 24px 0}
+
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<!-- SZÁMLÁLÓ -->
+<section class="view active" id="counter">
+  <div class="c-wrap">
+    <div class="hero" id="hero" aria-label="beteszemaszamba"><span class="fallback">beteszemaszamba</span></div>
+    <div class="meters"><div class="meters-in" id="meters"></div></div>
+    <div class="more" id="more">görgess a többi számlálóért ↓</div>
+  </div>
+</section>
+
+<!-- TÉRKÉP -->
+<section class="view" id="map-view">
+  <div id="map"></div>
+  <div class="map-top">
+    <button class="chip" data-fit="all">mind</button>
+    <button class="chip on" data-fit="eu">európa</button>
+    <button class="chip" data-fit="us">usa</button>
+  </div>
+</section>
+
+<!-- THE LIST -->
+<section class="view" id="list">
+  <header class="l-head">
+    <div class="kick">@burgiraly presents</div>
+    <h1>The <em>Burger</em><br>World Tour</h1>
+    <div class="l-sub" id="l-sub"></div>
+  </header>
+  <ol class="gigs" id="gigs"></ol>
+  <div class="l-foot">beteszemaszamba · more dates tba</div>
+</section>
+
+<div class="row" id="row">
+  <button class="fab" id="fab" aria-label="új számláló">+</button>
+  <button class="btn" id="open">teddbeaszadba</button>
+</div>
+
+<nav class="nav">
+  <button class="on" data-view="counter">számláló</button>
+  <button data-view="map-view">térkép</button>
+  <button data-view="list">the list</button>
+</nav>
+
+<div class="veil" id="veil"></div>
+<div class="sheet" id="add-sheet" role="dialog" aria-modal="true" aria-label="hozzáadás">
+  <div class="grab"></div>
+  <h2>mit tettél a szádba?</h2>
+  <div id="steps"></div>
+  <button class="save" id="save" disabled>beteszemaszamba</button>
+</div>
+<div class="sheet" id="new-sheet" role="dialog" aria-modal="true" aria-label="új számláló">
+  <div class="grab"></div>
+  <h2>új számláló</h2>
+  <p class="hint">mit szeretnél még számolni? pl. fröccs, hot dog, pizzaszelet</p>
+  <input class="field" id="new-name" maxlength="20" placeholder="étel vagy ital neve" autocomplete="off">
+  <button class="save" id="new-save" disabled>mentés</button>
+</div>
+
+<div class="toast" id="toast"><span id="toast-text"></span><button id="undo">vissza</button></div>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* =========================================================
+   1) ADATOK – itt szerkesztheted a helyeket és a listát
+   ========================================================= */
+// lat/lng null = csak a listában szerepel · approx = bizonytalan helyszín · closed = bezárt · ig = Instagram poszt linkje
+const PLACES = {
+  malackrumpli:{name:"Malackrumpli",city:"Balatonfüred",lat:46.958,lng:17.893,approx:true,closed:true},
+  bsw:{name:"Burger She Wrote",city:"Los Angeles, CA",lat:34.0763,lng:-118.3523},
+  budasmash:{name:"BudaSmash",city:"Budapest XI.",lat:47.4774,lng:19.0475},
+  shakeshack:{name:"Shake Shack",city:"USA",lat:34.0706,lng:-84.2756,approx:true},
+  fryday:{name:"Fryday Memo",city:"Kolozsvár",lat:46.77029,lng:23.58809},
+  smashy:{name:"Smashy",city:"Budapest VIII.",lat:47.4898,lng:19.0627},
+  finiz:{name:"Fini'Z",city:"Budapest IX.",lat:47.4886,lng:19.0614},
+  buddys:{name:"Buddy's Burger",city:"Budapest V.",lat:47.4964,lng:19.0533},
+  eureka:{name:"Eureka!",city:"Las Vegas, NV",lat:36.1027,lng:-115.1720,approx:true},
+  bambamarha:{name:"Bamba Marha",city:"Budapest",lat:47.5052,lng:19.0634,approx:true},
+  centralcity:{name:"Central City Tavern",city:"Alpharetta, GA",lat:34.0754,lng:-84.2941},
+  simons:{name:"Simon's Burger",city:"14 helyszín",approx:true,locs:[
+    {label:"Deák (flagship)",lat:47.4977,lng:19.0548},{label:"Arany János utca",lat:47.5045,lng:19.0525},
+    {label:"Westend",lat:47.5130,lng:19.0600},{label:"Corvin",lat:47.4852,lng:19.0735},
+    {label:"Allee",lat:47.4747,lng:19.0490},{label:"Óbuda",lat:47.5420,lng:19.0370},
+    {label:"Csepel",lat:47.4290,lng:19.0700},{label:"Budaörs",lat:47.4610,lng:18.9610},
+    {label:"M7",lat:47.2400,lng:18.6700},{label:"Veszprém",lat:47.0965,lng:17.9120},
+    {label:"Győr, Árkád",lat:47.6810,lng:17.6470},{label:"Mohács",lat:45.9930,lng:18.6800},
+    {label:"Kolozsvár",lat:46.7690,lng:23.5925},{label:"Kassa",lat:48.7164,lng:21.2611}]},
+  fiveguys:{name:"Five Guys",city:"Bécs · Atlanta",approx:true,locs:[{label:"Bécs",lat:48.1990,lng:16.3550},{label:"Atlanta, GA",lat:33.7550,lng:-84.3900}]},
+  innout:{name:"In-N-Out",city:"Las Vegas, NV",lat:36.1013,lng:-115.1789,approx:true},
+  hawgwild:{name:"Hawg Wild",city:"Észak-Georgia",lat:34.9496,lng:-83.7570,approx:true},
+  kisablak:{name:"Kisablak",city:"Szeged",lat:46.2530,lng:20.1482,approx:true},
+  zing:{name:"Zing Burger",city:"Budapest",lat:47.4870,lng:19.0628,approx:true},
+  grund:{name:"Grund",city:"Budapest VIII.",lat:47.4880,lng:19.0765},
+  meses:{name:"Mesés BBQ & Grill",city:"Balatonlelle",lat:46.7880,lng:17.6950,approx:true,closed:true},
+  fricska:{name:"Fricska",city:"Veszprém",lat:47.0930,lng:17.9093,approx:true},
+  eatburger:{name:"Eat Burger",city:"Oklahoma",lat:35.2226,lng:-97.4395,approx:true},
+  macko:{name:"Mackó",city:"Szeged",lat:46.2490,lng:20.1414,approx:true},
+  rebel:{name:"Rebel – Burger & More",city:"Budapest VI.",lat:47.4985,lng:19.0563},
+  universal:{name:"Universal Joint",city:"Clayton, GA",lat:34.8781,lng:-83.4010,approx:true},
+  rizmajer:{name:"Rizmajer",city:"Budapest, József körút",lat:47.4905,lng:19.0712,approx:true},
+  kedvesem:{name:"Kedvesem",city:"Balatonlelle",lat:46.7840,lng:17.6880,approx:true},
+  vitorlas:{name:"Vitorlás",city:"Balatonlelle",lat:46.7905,lng:17.6915,approx:true},
+  dreamteam:{name:"Dream Team",city:"Tapolca",lat:46.8820,lng:17.4410,approx:true},
+  beerburgers:{name:"Beer & Burgers",city:"Szolnok",lat:47.1745,lng:20.1960,approx:true},
+  kishalasz:{name:"Kishalász Bisztró",city:"Balatonszemes",lat:46.8100,lng:17.7730,approx:true},
+  liliomfi:{name:"Liliomfi",city:"Szolnok",lat:47.1770,lng:20.1875,approx:true},
+  pitvar:{name:"Pitvar",city:"Szolnok",lat:47.1722,lng:20.1990,approx:true,closed:true},
+  delmar:{name:"Del Mar",city:"Malinska, Krk",lat:45.1235,lng:14.5285,approx:true},
+  donnies:{name:"Donnie's Burger",city:"Budapest, Harminckettesek tere",lat:47.4877,lng:19.0745,approx:true,closed:true},
+  happypipi:{name:"Happy Pipi",city:"Újpest, Tesco parkoló",lat:47.5615,lng:19.0905,approx:true,closed:true},
+};
+// A lista pontosan úgy, ahogy bemásoltad (sorrend = the list sorrendje).
+const LIST = [
+  ["malackrumpli burger",9.9,"malackrumpli"],["burger she wrote oklahoma style",9.63,"bsw"],["budasmash caviar smash",9.5,"budasmash"],
+  ["shake shack shackburger",9.42,"shakeshack"],["fryday",9.41,"fryday"],["smashy house cheeseburger",9.4,"smashy"],
+  ["fini’z cheeseburger",9.3,"finiz"],["buddy’s",9.2,"buddys"],["budasmash",9.19,"budasmash"],
+  ["eureka! 28 day dry-aged bone marrow burger las vegas",9.189,"eureka"],["bamba marha raclette burger",9.177,"bambamarha"],
+  ["central city tavern (alpharetta) whiskey bacon burger",9.165,"centralcity"],["simon’s",9.0,"simons"],
+  ["smashy classic cheeseburger",8.99,"smashy"],["five guys",8.77,"fiveguys"],["in n out double double",8.75,"innout"],
+  ["hawg wild brisket b with pulled pork",8.72,"hawgwild"],["bamba marha nachos burger",8.7,"bambamarha"],
+  ["bamba marha astoria burger",8.65,"bambamarha"],["bamba marha burger",8.52,"bambamarha"],["szegedi kisablak ring burger",8.45,"kisablak"],
+  ["zing sajto$sshh",8.4,"zing"],["grund-americano",8.3,"grund"],["zing guitar hero",8.25,"zing"],["zing burger angus the full extra",8.2,"zing"],
+  ["mesés bbq&grill balatonlelle",7.5,"meses"],["fricska veszprém: dupla",7.3,"fricska"],["eat burger sooners",6.7,"eatburger"],
+  ["macko szeged",6.4,"macko"],["rebel smashed cheeseburger",6.00,"rebel"],["universal joint, clayton bacon&cheddar",5.9,"universal"],
+  ["rizmajer bacon burger",5.8,"rizmajer"],["balatonlelle kedvesem burger",5.7,"kedvesem"],["vitorlás angus burger",5.5,"vitorlas"],
+  ["dream team amerikai burger tapolca",5.45,"dreamteam"],["beer&burgers lyone burger",5.4,"beerburgers"],["beer&burgers cheese jackpot",5.2,"beerburgers"],
+  ["balatonszemes kishalasz bisztro",5.0,"kishalasz"],["liliomfi burger",5.0,"liliomfi"],["pitvar extra cheese burger",3.5,"pitvar"],
+  ["del mar burger croatia",3.2,"delmar"],["donnie’s burger",2.9,"donnies"],["happy pipi beef burger",2.8,"happypipi"],
+];
+
+/* =========================================================
+   2) SEGÉDEK
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => (Math.round(n*100)/100).toString().replace(".", ",");
+// pontszám színe: ketchup piros (2,8) → narancs → Summit Gold (9,9)
+function rateCol(sc){
+  const t = Math.max(0, Math.min(1, (sc-2.8)/(9.9-2.8)));
+  const S = [[0,[200,16,46]],[.45,[226,113,42]],[1,[245,181,31]]];
+  for (let i=1;i<S.length;i++){ const [p1,c1]=S[i-1],[p2,c2]=S[i]; if (t<=p2){ const k=(t-p1)/(p2-p1); return `rgb(${c1.map((v,j)=>Math.round(v+(c2[j]-v)*k))})`; } }
+}
+
+/* =========================================================
+   3) SZÁMLÁLÓK
+   ========================================================= */
+const BASE = [{id:"burger",name:"burger"},{id:"beer",name:"beer"}];
+// skála: alapból 50; 47-től minden új darabbal eggyel tovább csúszik, így sosem éred el a végét
+const scaleMax = n => n >= 47 ? n + 3 : 50;
+const KEY = "beteszemaszamba.v3";
+let state = { custom:[], values:{} };
+function load(){
+  try{
+    const v3 = JSON.parse(localStorage.getItem(KEY));
+    if (v3 && v3.values){ state = { custom:v3.custom||[], values:v3.values }; return; }
+    const v2 = JSON.parse(localStorage.getItem("beteszemaszamba.v2"));
+    if (v2 && v2.values){ state = { custom:v2.custom||[], values:v2.values }; return; }
+    const v1 = JSON.parse(localStorage.getItem("beteszemaszamba.v1"));
+    if (v1) state.values = { burger:v1.burger||0, beer:v1.beer||0 };
+  }catch(e){}
+}
+function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+const counters = () => [...BASE, ...state.custom];
+const val = id => state.values[id] || 0;
+
+const KNOB = `<svg viewBox="-3.5 -5 7 10"><polygon points="-1.5,-4.5 1.5,-4.5 3,-3 3,3 1.5,4.5 -1.5,4.5 -3,3 -3,-3"/></svg>`;
+function renderMeters(){
+  const box = $("#meters");
+  box.innerHTML = counters().map(c => `
+    <div class="m" data-id="${c.id}">
+      <div class="lbl"><span></span>${c.custom ? `<button class="del" aria-label="számláló törlése">×</button>` : ""}</div>
+      <div class="num">0</div>
+      <div class="bar"><i></i>${KNOB}</div>
+    </div>`).join("");
+  box.querySelectorAll(".m").forEach(el => {
+    const c = counters().find(x => x.id === el.dataset.id);
+    el.querySelector(".lbl span").textContent = c.name + " count";
+    const d = el.querySelector(".del"); if (d) d.onclick = () => removeCounter(c);
+  });
+  const many = counters().length > 2;
+  box.classList.toggle("many", many);
+  $("#more").classList.toggle("show", many);
+  requestAnimationFrame(updateMeters);
+}
+function updateMeters(){
+  $$(".m").forEach(el => {
+    const n = val(el.dataset.id), t = Math.min(1, n / scaleMax(n));
+    el.querySelector(".num").textContent = n;
+    el.querySelector(".bar i").style.clipPath = `inset(0 ${(1-t)*100}% 0 0 round 9px)`;
+    el.querySelector(".bar svg").style.left = (t*100) + "%";
+  });
+}
+
+/* ablakok */
+function openSheet(id){ $$(".sheet").forEach(s => s.classList.toggle("open", s.id === id)); $("#veil").classList.add("open"); }
+function closeSheets(){ $$(".sheet").forEach(s => s.classList.remove("open")); $("#veil").classList.remove("open"); }
+$("#veil").onclick = closeSheets;
+
+/* hozzáadás / levonás */
+let draft = {};
+const showQty = q => q > 0 ? "+" + q : q < 0 ? "−" + Math.abs(q) : "0";
+$("#open").onclick = () => {
+  draft = {};
+  $("#steps").innerHTML = counters().map(c => `
+    <div class="step" data-id="${c.id}"><div class="step-name"></div>
+      <div class="ctrl"><button class="round" data-d="-1" aria-label="kevesebb">−</button><div class="qty">0</div><button class="round plus" data-d="1" aria-label="több">+</button></div></div>`).join("");
+  $$(".step").forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector(".step-name").textContent = counters().find(c => c.id === id).name;
+    row.querySelectorAll(".round").forEach(b => b.onclick = () => {
+      draft[id] = Math.max(-val(id), Math.min(99, (draft[id]||0) + Number(b.dataset.d)));   // mínuszba is mehet, de 0 alá nem viszi a számlálót
+      const q = row.querySelector(".qty"); q.textContent = showQty(draft[id]); q.classList.toggle("neg", draft[id] < 0);
+      $("#save").disabled = !Object.values(draft).some(v => v !== 0);
+    });
+  });
+  $("#save").disabled = true;
+  openSheet("add-sheet");
+};
+let lastAdd = null, toastTimer = null;
+$("#save").onclick = () => {
+  const parts = [];
+  lastAdd = {};
+  counters().forEach(c => {
+    const d = draft[c.id] || 0;
+    if (!d) return;
+    const before = val(c.id);
+    state.values[c.id] = Math.max(0, before + d);
+    lastAdd[c.id] = state.values[c.id] - before;
+    parts.push(`${d > 0 ? "+" : "−"}${Math.abs(d)} ${c.name}`);
+  });
+  persist(); closeSheets();
+  setTimeout(updateMeters, 150);
+  toast(parts.join(", "));
+};
+function toast(text){
+  $("#toast-text").textContent = text;
+  $("#toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 4000);
+}
+$("#undo").onclick = () => {
+  if (!lastAdd) return;
+  Object.entries(lastAdd).forEach(([id, d]) => state.values[id] = Math.max(0, val(id) - d));
+  lastAdd = null; persist(); updateMeters();
+  $("#toast").classList.remove("show");
+};
+
+/* új számláló */
+$("#fab").onclick = () => { $("#new-name").value = ""; $("#new-save").disabled = true; openSheet("new-sheet"); setTimeout(() => $("#new-name").focus(), 280); };
+$("#new-name").oninput = e => $("#new-save").disabled = !e.target.value.trim();
+$("#new-name").onkeydown = e => { if (e.key === "Enter" && e.target.value.trim()) $("#new-save").click(); };
+$("#new-save").onclick = () => {
+  const name = $("#new-name").value.trim().toLowerCase();
+  if (!name) return;
+  closeSheets();
+  if (counters().some(c => c.name === name)) { toast(`„${name}” már van`); return; }
+  state.custom.push({ id:"c"+Date.now(), name, custom:true });
+  persist(); renderMeters();
+  setTimeout(() => { const b = $("#meters"); b.scrollTo({ top:b.scrollHeight, behavior:"smooth" }); }, 50);
+  toast(`új számláló: ${name}`);
+};
+function removeCounter(c){
+  if (!confirm(`Törlöd a(z) „${c.name}” számlálót?`)) return;
+  state.custom = state.custom.filter(x => x.id !== c.id);
+  delete state.values[c.id];
+  persist(); renderMeters();
+}
+
+/* =========================================================
+   4) 8 BITES FIGURA A FEJLÉCBEN – lobogó USA-zászló előtt eszi a burgert
+   ========================================================= */
+
+
+/* ---------- közös elemek ---------- */
+const DEFS = `<defs>
+  <linearGradient id="skin" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ecc8a5"/><stop offset=".75" stop-color="#e0b38d"/><stop offset="1" stop-color="#c9966f"/></linearGradient>
+  <linearGradient id="bun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6a35a"/><stop offset="1" stop-color="#b9702f"/></linearGradient>
+</defs>`;
+const SHIRT = (cx) => `<path d="M${cx-72},200 C${cx-66},164 ${cx-30},150 ${cx},150 C${cx+30},150 ${cx+66},164 ${cx+72},200 Z" fill="#141414"/>
+  <path d="M${cx-16},118 L${cx+16},118 L${cx+18},154 Q${cx},162 ${cx-18},154 Z" fill="#c38f69"/>`;
+const HAND = `<g id="hand">
+  <path d="M-34,6 L-66,110 L-40,118 L-16,12 Z" fill="#e0b38d"/>
+  <path d="M-23,9 Q0,19 23,9 L23,13 Q0,23 -23,13 Z" fill="#b9702f"/>
+  <rect x="-24" y="2" width="48" height="8" rx="3.5" fill="#5a3420"/>
+  <path d="M-24,0 L24,0 L24,3.5 L15,3.5 L13,10 L11,3.5 L-6,3.5 L-8,8 L-10,3.5 L-24,3.5 Z" fill="#f5b51f"/>
+  <rect x="-24" y="-7" width="48" height="8" rx="3.5" fill="#4d2b19"/>
+  <path d="M-24,-8 L24,-8 L24,-5 L6,-5 L4,1 L2,-5 L-24,-5 Z" fill="#f7c33d"/>
+  <path d="M-24,-9 Q-24,-28 0,-28 Q24,-28 24,-9 Z" fill="url(#bun)"/>
+  <g fill="#fbeedd"><ellipse cx="-12" cy="-17" rx="1.6" ry="1"/><ellipse cx="-2" cy="-21" rx="1.6" ry="1"/><ellipse cx="9" cy="-18" rx="1.6" ry="1"/><ellipse cx="-5" cy="-12" rx="1.6" ry="1"/><ellipse cx="5" cy="-13" rx="1.6" ry="1"/></g>
+  <path d="M-30,-14 C-34,-4 -34,10 -28,16 C-22,20 -16,16 -18,8 C-20,0 -20,-8 -22,-14 Z" fill="#e8bf99"/>
+  <path d="M-24,-16 C-18,-22 -10,-22 -8,-18 C-10,-15 -16,-14 -21,-12 Z" fill="#ecc8a5"/>
+</g>`;
+const HAIR = "#2e2017", HAIR2 = "#4a3628", FADE = "#7a6553", BROW = "#24180f", BEARD = "#2a1f18";
+const mouth = (cx,cy,w) => `<g>
+  <ellipse id="mouth-open" cx="${cx}" cy="${cy}" rx="${w}" ry="0.1" fill="#3a0f0c"/>
+  <rect id="teeth" x="${cx-w+1.5}" y="${cy-3.6}" width="${2*w-3}" height="2.6" rx="1" fill="#f6efe6" opacity="0"/>
+  <path id="mouth-line" d="M${cx-w+1},${cy-1} Q${cx},${cy+2} ${cx+w-1},${cy-1}" stroke="#6b3226" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+</g>`;
+
+
+const V = {
+  name:"oldalnézet", note:"Tiszta profil balra nézve. A legjobban olvasható a mozgás: a burger egyenesen a szájhoz ér, a fej formája kis méretben is egyértelmű.",
+  up:{x:48,y:115,r:0}, down:{x:40,y:172,r:-12},
+  svg:`${SHIRT(118)}
+  <path d="M78,52 C86,32 108,24 128,28 C146,32 156,48 156,68 C156,86 152,98 146,106 L142,122 C136,136 122,142 106,142 L92,142 C84,140 78,134 76,126 L74,118 L70,114 L72,108 L65,99 C63,95 65,91 70,89 L72,81 C70,72 72,62 78,52 Z" fill="#e3b896"/>
+  <ellipse cx="126" cy="92" rx="8" ry="12" fill="#d9a882"/><path d="M127,85 Q131,92 126,99" stroke="#b07a55" stroke-width="2" fill="none"/>
+  <path d="M74,60 C78,34 104,22 128,26 C148,30 160,48 157,68 C156,76 154,82 150,86 L142,84 C144,80 144,76 140,72 C135,62 128,56 118,54 C106,52 94,52 84,58 C80,60 77,62 74,60 Z" fill="${HAIR}"/>
+  <path d="M96,36 C112,30 130,32 144,42" stroke="${HAIR2}" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M134,64 C142,70 146,80 150,90 L144,92 C140,84 136,74 130,68 Z" fill="${FADE}"/>
+  <path d="M78,73 Q90,65 103,69 L103,75 Q90,71 79,78 Z" fill="${BROW}"/>
+  <g id="eye-open"><ellipse cx="88" cy="83" rx="3.6" ry="4.2" fill="#1a110b"/><circle cx="87" cy="81.6" r="1.1" fill="#fbf4ec"/></g>
+  <g id="eye-closed" opacity="0" stroke="#1a110b" stroke-width="3.4" fill="none" stroke-linecap="round"><path d="M83,83 Q89,86 95,83"/></g>
+  <path d="M68,100 Q71,103 76,101" stroke="#a8724e" stroke-width="1.6" fill="none"/>
+  <path d="M74,106 C84,104 96,106 106,108 L120,104 C130,101 138,100 144,104 L142,122 C136,136 122,142 106,142 L92,142 C84,140 78,134 76,126 Z" fill="${BEARD}"/>
+  <path d="M69,107 Q78,102 88,106 Q78,105 71,110 Z" fill="#21170f"/>
+  ${mouth(76,114,6.5)}`
+};
+const build = v => `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${DEFS}${v.svg}${HAND}</svg>`;
+/* ---------- mozgás ---------- */
+const CYCLE = 2400, FRAMES = 24, PX = 56;
+const ease = x => x<.5 ? 2*x*x : 1-Math.pow(-2*x+2,2)/2;
+const span = (p,a,b) => Math.max(0, Math.min(1, (p-a)/(b-a)));
+function pose(v, p){
+  let h; if (p<.38) h = ease(span(p,0,.38)); else if (p<.6) h = 1-.04*Math.sin(span(p,.38,.6)*Math.PI*2); else h = 1-ease(span(p,.6,1));
+  const m = p<.3 ? 0 : p<.4 ? ease(span(p,.3,.4)) : p<.56 ? 1 : p<.66 ? 1-ease(span(p,.56,.66)) : 0;
+  return { x:v.down.x+(v.up.x-v.down.x)*h, y:v.down.y+(v.up.y-v.down.y)*h, r:v.down.r+(v.up.r-v.down.r)*h, m };
+}
+function applyPose(svg, v, p){
+  const s = pose(v, p);
+  svg.querySelector("#hand").setAttribute("transform", `translate(${s.x} ${s.y}) rotate(${s.r})`);
+  svg.querySelector("#mouth-open").setAttribute("ry", (0.1 + s.m*7).toFixed(2));
+  svg.querySelector("#teeth").setAttribute("opacity", s.m > .35 ? 1 : 0);
+  svg.querySelector("#mouth-line").setAttribute("opacity", s.m > .15 ? 0 : 1);
+  svg.querySelector("#eye-open").setAttribute("opacity", s.m > .55 ? 0 : 1);
+  svg.querySelector("#eye-closed").setAttribute("opacity", s.m > .55 ? 1 : 0);
+}
+
+/* ---------- pixelesítés ---------- */
+const PAL = [[13,13,13],[20,20,20],[33,23,15],[46,32,23],[74,54,40],[122,101,83],[58,15,12],[107,50,38],[195,143,105],[217,168,130],[236,200,165],[246,239,230],[90,52,32],[77,43,25],[185,112,47],[230,163,90],[245,181,31],[251,238,221]];
+const nearest = (r,g,b) => { let best=PAL[0], d=1e9; for (const c of PAL){ const e=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if (e<d){ d=e; best=c; } } return best; };
+async function frames(v){
+  const holder = document.createElement("div"); holder.innerHTML = build(v);
+  const svg = holder.firstElementChild; svg.setAttribute("width", PX); svg.setAttribute("height", PX);
+  const out = [];
+  for (let i=0;i<FRAMES;i++){
+    applyPose(svg, v, i/FRAMES);
+    const img = new Image(); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(svg)); await img.decode();
+    const c = document.createElement("canvas"); c.width = c.height = PX; const g = c.getContext("2d"); g.drawImage(img,0,0,PX,PX);
+    const d = g.getImageData(0,0,PX,PX), a = d.data;
+    for (let k=0;k<a.length;k+=4){ if (a[k+3]<110){ a[k+3]=0; continue; } const [r,gg,b]=nearest(a[k],a[k+1],a[k+2]); a[k]=r; a[k+1]=gg; a[k+2]=b; a[k+3]=255; }
+    g.putImageData(d,0,0); out.push(c);
+  }
+  return out;
+}
+
+
+/* ---------- zászló pixelenként ---------- */
+const RED=[178,34,52], WHITE=[238,236,228], BLUE=[48,50,104];
+function flagColor(u, v, px, py){
+  if (u < .42 && v < 7/13){
+    // csillagok: ritkított fehér pöttyök a kék mezőben
+    return (px % 2 === 0 && py % 2 === 0) ? WHITE : BLUE;
+  }
+  return Math.floor(v*13) % 2 === 0 ? RED : WHITE;
+}
+// lay: { hoistX, dir(+1 jobbra / -1 balra), top, W, H, A, waves, pole, circle }
+function drawFlag(ctx, lay, phase){
+  const img = ctx.getImageData(0,0,PX,PX), d = img.data;
+  const put = (x,y,c,k) => { if (x<0||y<0||x>=PX||y>=PX) return;
+    if (lay.circle){ const dx=x+.5-lay.circle.x, dy=y+.5-lay.circle.y; if (dx*dx+dy*dy > lay.circle.r**2) return; }
+    const i=(y*PX+x)*4; d[i]=c[0]*k; d[i+1]=c[1]*k; d[i+2]=c[2]*k; d[i+3]=255; };
+  for (let c=0;c<lay.W;c++){
+    const u = c/lay.W;
+    const amp = lay.A * Math.pow(u, .7) + (lay.circle ? lay.A*.5 : 0);
+    const ang = 2*Math.PI*lay.waves*u - phase;
+    const off = Math.round(amp*Math.sin(ang));
+    const slope = Math.cos(ang);
+    const k = slope > .45 ? 1 : slope < -.45 ? .72 : .86;      // ráncok árnyéka 3 lépcsőben
+    const x = lay.hoistX + lay.dir*c;
+    for (let r=0;r<lay.H;r++) put(x, lay.top + r + off, flagColor(u, r/lay.H, c, r), k);
+  }
+  if (lay.pole){
+    for (let y=lay.pole.top; y<PX; y++){ put(lay.pole.x, y, [70,70,68], 1); put(lay.pole.x+1, y, [110,110,106], 1); }
+    put(lay.pole.x, lay.pole.top-1, [245,181,31], 1); put(lay.pole.x+1, lay.pole.top-1, [245,181,31], 1);
+    put(lay.pole.x, lay.pole.top-2, [245,181,31], 1); put(lay.pole.x+1, lay.pole.top-2, [245,181,31], 1);
+  }
+  ctx.putImageData(img,0,0);
+}
+const HERO_FLAG = { hoistX:2, dir:1, top:5, W:52, H:30, A:1.8, waves:1.3 };
+async function startHero(){
+  try{
+    const fig = await frames(V), out = [];
+    for (let i=0;i<FRAMES;i++){
+      const c = document.createElement("canvas"); c.width = c.height = PX; const g = c.getContext("2d");
+      drawFlag(g, HERO_FLAG, 2*Math.PI*2*i/FRAMES); g.drawImage(fig[i],0,0); out.push(c);
+    }
+    const cv = document.createElement("canvas"); cv.width = cv.height = PX; const o = cv.getContext("2d");
+    const hero = $("#hero"); hero.innerHTML = ""; hero.appendChild(cv);
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const draw = now => {
+      const f = still ? out[0] : out[Math.floor(((now % CYCLE)/CYCLE) * FRAMES) % FRAMES];
+      o.clearRect(0,0,PX,PX); o.drawImage(f,0,0);
+      if (!still) requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  }catch(e){ /* ha valami nem megy, marad a felirat */ }
+}
+
+/* =========================================================
+   5) THE LIST
+   ========================================================= */
+function renderList(){
+  $("#gigs").innerHTML = LIST.map(([text, score, pid], i) => {
+    const p = PLACES[pid] || {};
+    return `<li class="gig">
+      <div class="n">${String(i+1).padStart(2,"0")}</div>
+      <div><div class="t">${esc(text)}</div><div class="c">${p.closed ? '<span class="stamp">bezárt</span>' : ""}${esc(p.city||"")}</div></div>
+      <div class="s" style="color:${rateCol(score)}">${fmt(score)}</div></li>`;
+  }).join("");
+  $("#l-sub").textContent = `${LIST.length} burger · ${new Set(LIST.map(r => r[2])).size} helyszín`;
+}
+
+/* =========================================================
+   6) TÉRKÉP (API-kulcs nélküli csempék, tartalékkal)
+   ========================================================= */
+const TILES = [
+  { url:"https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", opts:{ maxZoom:16, attribution:"Tiles &copy; Esri" } },
+  { url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png", opts:{ maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' } },
+];
+let map, groups = {}, tiles, tIdx = 0, tErr = 0;
+function useTiles(i){
+  if (tiles) map.removeLayer(tiles);
+  tIdx = i; tErr = 0;
+  tiles = L.tileLayer(TILES[i].url, TILES[i].opts).addTo(map);
+  tiles.on("tileerror", () => { if (++tErr > 4 && tIdx < TILES.length-1) useTiles(tIdx+1); });
+}
+function initMap(){
+  if (map){ map.invalidateSize(); return; }
+  if (typeof L === "undefined"){
+    $("#map-view").insertAdjacentHTML("beforeend", '<div class="map-msg">A térkép nem töltődött be. Ellenőrizd az internetkapcsolatot, és frissítsd az oldalt.</div>');
+    return;
+  }
+  map = L.map("map", { zoomControl:false }).setView([47.2,19.2], 7);
+  L.control.zoom({ position:"bottomright" }).addTo(map);
+  useTiles(0);
+  const by = {};
+  LIST.forEach(([text, score, pid]) => (by[pid] ||= []).push({ text, score }));
+  const all = [], eu = [], us = [];
+  Object.entries(by).forEach(([pid, items]) => {
+    const p = PLACES[pid];
+    if (!p) return;
+    const locs = p.locs || (p.lat != null ? [{ lat:p.lat, lng:p.lng }] : []);
+    if (!locs.length) return;
+    const avg = items.reduce((a,b) => a + b.score, 0) / items.length, col = rateCol(avg);
+    const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-26],
+      html:`<div class="pin${p.closed?" closed":""}" style="background:${col}"><span>${avg.toFixed(1)}</span></div>` });
+    const list = items.length > 1 ? `<ul class="pop-list">${items.map(it => `<li><span>${esc(it.text)}</span><b>${fmt(it.score)}</b></li>`).join("")}</ul>` : "";
+    locs.forEach(loc => {
+      const html = `<div class="pop-name">${esc(p.name)}</div><div class="pop-city">${esc(loc.label || p.city)}${p.locs ? ` · ${p.locs.length} helyszínből egy` : ""}</div>
+        <span class="pop-score" style="color:${col}">${fmt(avg)}</span>${items.length>1?`<span class="pop-avg">${items.length} burger átlaga</span>`:""}
+        ${list}${p.closed ? '<div class="pop-badge">bezárt</div>' : ""}
+        ${p.ig ? `<div><a class="pop-ig" href="${esc(p.ig)}" target="_blank" rel="noopener">megnézem instán →</a></div>` : ""}
+        ${p.approx ? '<div class="pop-approx">hozzávetőleges helyszín</div>' : ""}`;
+      const m = L.marker([loc.lat, loc.lng], { icon }).bindPopup(html, { maxWidth:260 }).addTo(map);
+      all.push(m.getLatLng()); (loc.lng < -30 ? us : eu).push(m.getLatLng());
+    });
+  });
+  groups = { all, eu, us };
+  fit("eu");
+}
+function fit(k){ const pts = groups[k]; if (map && pts && pts.length) map.fitBounds(L.latLngBounds(pts), { padding:[60,60], maxZoom:13 }); }
+$$(".chip").forEach(c => c.onclick = () => { $$(".chip").forEach(x => x.classList.toggle("on", x === c)); fit(c.dataset.fit); });
+
+/* =========================================================
+   7) NAVIGÁCIÓ
+   ========================================================= */
+$$(".nav button").forEach(b => b.onclick = () => {
+  const v = b.dataset.view;
+  $$(".nav button").forEach(x => x.classList.toggle("on", x === b));
+  $$(".view").forEach(s => s.classList.toggle("active", s.id === v));
+  $("#row").classList.toggle("hidden", v !== "counter");
+  document.body.classList.toggle("dark", v !== "counter");
+  document.querySelector('meta[name="theme-color"]').content = v === "counter" ? "#9c9e9d" : "#0d0d0d";
+  $("#toast").classList.remove("show");
+  if (v === "map-view") setTimeout(initMap, 30);
+});
+
+load(); renderMeters(); renderList(); startHero();
+</script>
+</body>
+</html>
