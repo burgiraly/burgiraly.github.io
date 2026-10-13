@@ -13,7 +13,7 @@
 <meta name="application-name" content="burgiraly">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
@@ -620,7 +620,7 @@ function initMap(){
     });
   });
   groups = { all, eu, us };
-  fit("eu");
+  map.whenReady(() => { map.invalidateSize(); fit("eu"); });
 }
 function fit(k){ const pts = groups[k]; if (map && pts && pts.length) map.fitBounds(L.latLngBounds(pts), { padding:[60,60], maxZoom:13 }); }
 $$(".chip").forEach(c => c.onclick = () => { $$(".chip").forEach(x => x.classList.toggle("on", x === c)); fit(c.dataset.fit); });
@@ -636,7 +636,10 @@ $$(".nav button").forEach(b => b.onclick = () => {
   document.body.classList.toggle("dark", v !== "counter");
   document.querySelector('meta[name="theme-color"]').content = v === "counter" ? "#9c9e9d" : "#0d0d0d";
   $("#toast").classList.remove("show");
-  if (v === "map-view") setTimeout(initMap, 30);
+  if (v === "map-view") setTimeout(() => {
+    initMap();
+    if (map) { map.invalidateSize(); const on = document.querySelector(".chip.on"); fit(on ? on.dataset.fit : "eu"); }
+  }, 60);
 });
 
 /* =========================================================
