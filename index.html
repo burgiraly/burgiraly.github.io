@@ -29,6 +29,7 @@
     --display:"Bagel Fat One",system-ui,sans-serif;
     --thin:"Outfit",system-ui,sans-serif;
     --safe-b:env(safe-area-inset-bottom);
+    --st:0px;   /* iOS főképernyős módban a felső sáv magassága, ha a rendszer nem adja meg */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   /* nagyítás tiltása mindenhol (dupla koppintás is), kivéve a térképet */
@@ -40,12 +41,12 @@
   button,input{font:inherit;color:inherit;letter-spacing:inherit}
   button{border:0;background:none;cursor:pointer}
 
-  .view{position:fixed;inset:0;display:none;max-width:560px;margin:0 auto}
+  .view{position:fixed;inset:0 0 calc(-1 * var(--st)) 0;display:none;max-width:560px;margin:0 auto}
   .view.active{display:block}
 
   /* ---------- SZÁMLÁLÓ ---------- */
   #counter{background:var(--nardo)}
-  .c-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:calc(env(safe-area-inset-top) + clamp(20px, 6vh, 56px)) 0 calc(var(--safe-b) + 150px)}
+  .c-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:calc(max(env(safe-area-inset-top), var(--st)) + clamp(20px, 6vh, 56px)) 0 calc(var(--safe-b) + 150px)}
   .hero{width:92px;height:92px;flex-shrink:0;display:grid;place-items:center}
   .hero canvas{width:92px;height:92px;image-rendering:pixelated}
   .hero .fallback{font-family:var(--display);font-size:15px}
@@ -64,22 +65,22 @@
   .more{font-size:11px;color:var(--ink-soft);opacity:0;transition:opacity .2s;height:14px;margin-top:4px}
   .more.show{opacity:.8}
 
-  .row{position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:560px;bottom:calc(var(--safe-b) + 88px);height:48px;display:flex;align-items:center;justify-content:center;padding:0 24px;z-index:20}
+  .row{position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:560px;bottom:calc(var(--safe-b) + 88px - var(--st));height:48px;display:flex;align-items:center;justify-content:center;padding:0 24px;z-index:20}
   .fab{position:absolute;left:24px;top:6px;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--black);display:grid;place-items:center;font-size:20px;font-weight:300;line-height:1}
   .btn{width:168px;height:48px;border-radius:99px;background:var(--gold);border:1.5px solid var(--black);color:var(--black);font-weight:600;font-size:16px;transition:transform .1s}
   .btn:active,.fab:active{transform:scale(.96)}
   .row.hidden{display:none}
 
   /* ---------- MENÜ (lebegő buborék) ---------- */
-  .nav{position:fixed;left:50%;bottom:calc(var(--safe-b) + 18px);transform:translateX(-50%);display:flex;gap:2px;padding:5px;border-radius:99px;background:var(--black);box-shadow:0 8px 24px rgba(0,0,0,.28);z-index:30}
+  .nav{position:fixed;left:50%;bottom:calc(var(--safe-b) + 18px - var(--st));transform:translateX(-50%);display:flex;gap:2px;padding:5px;border-radius:99px;background:var(--black);box-shadow:0 8px 24px rgba(0,0,0,.28);z-index:30}
   body.dark .nav{background:var(--black-2)}
   .nav button{padding:10px 16px;border-radius:99px;font-size:14px;color:var(--nardo-mid);white-space:nowrap;transition:background .2s,color .2s}
   .nav button.on{background:var(--gold);color:var(--black);font-weight:600}
 
   /* ---------- ABLAKOK ---------- */
-  .veil{position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+  .veil{position:fixed;inset:0 0 calc(-1 * var(--st)) 0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
   .veil.open{opacity:1;pointer-events:auto}
-  .sheet{position:fixed;left:50%;bottom:0;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;background:var(--black);color:var(--cream);border-radius:28px 28px 0 0;padding:12px 24px calc(var(--safe-b) + 24px);transform:translate(-50%,105%);transition:transform .3s cubic-bezier(.2,.9,.25,1);z-index:41}
+  .sheet{position:fixed;left:50%;bottom:calc(-1 * var(--st));width:100%;max-width:560px;max-height:85vh;overflow-y:auto;background:var(--black);color:var(--cream);border-radius:28px 28px 0 0;padding:12px 24px calc(var(--safe-b) + 24px);transform:translate(-50%,105%);transition:transform .3s cubic-bezier(.2,.9,.25,1);z-index:41}
   .sheet.open{transform:translate(-50%,0)}
   .grab{width:40px;height:4px;border-radius:9px;background:#333;margin:0 auto 16px}
   .sheet h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 8px;letter-spacing:0}
@@ -97,7 +98,7 @@
   .field{width:100%;height:50px;border-radius:16px;border:1.5px solid #333;background:#161616;color:var(--cream);padding:0 16px;font-size:17px;outline:none}
   .field:focus{border-color:var(--gold)}
 
-  .toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 150px);transform:translate(-50%,16px);background:var(--black);color:var(--cream);padding:11px 16px;border-radius:99px;font-size:14px;display:flex;gap:14px;align-items:center;opacity:0;pointer-events:none;transition:.25s;z-index:35;white-space:nowrap;max-width:calc(100% - 40px)}
+  .toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 150px - var(--st));transform:translate(-50%,16px);background:var(--black);color:var(--cream);padding:11px 16px;border-radius:99px;font-size:14px;display:flex;gap:14px;align-items:center;opacity:0;pointer-events:none;transition:.25s;z-index:35;white-space:nowrap;max-width:calc(100% - 40px)}
   .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
   #toast-text{overflow:hidden;text-overflow:ellipsis}
   .toast button{font-weight:600;color:var(--gold)}
@@ -106,7 +107,7 @@
   #map-view{background:var(--black)}
   #map{position:absolute;inset:0;background:#1b1b1b}
   #map .leaflet-tile-pane{filter:grayscale(1) contrast(1.05) brightness(.95)}
-  .map-top{position:absolute;top:calc(env(safe-area-inset-top) + 14px);left:0;right:0;z-index:500;display:flex;gap:6px;justify-content:center}
+  .map-top{position:absolute;top:calc(max(env(safe-area-inset-top), var(--st)) + 14px);left:0;right:0;z-index:500;display:flex;gap:6px;justify-content:center}
   .chip{background:rgba(13,13,13,.9);color:var(--nardo-mid);padding:9px 15px;border-radius:99px;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
   .chip.on{background:var(--gold);color:var(--black);font-weight:600}
   .pin{width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);display:grid;place-items:center;border:1.5px solid var(--black);box-shadow:0 3px 8px rgba(0,0,0,.45)}
@@ -133,7 +134,7 @@
 
   /* ---------- THE LIST ---------- */
   #list{background:var(--black);color:var(--cream);overflow-y:auto;padding-bottom:calc(var(--safe-b) + 100px)}
-  .l-head{padding:calc(env(safe-area-inset-top) + 30px) 24px 20px;text-align:center}
+  .l-head{padding:calc(max(env(safe-area-inset-top), var(--st)) + 30px) 24px 20px;text-align:center}
   .kick{font-size:12px;color:var(--gold)}
   .l-head h1{font-family:var(--display);font-weight:400;font-size:clamp(38px,11vw,52px);line-height:.98;margin:8px 0 8px;letter-spacing:0}
   .l-head h1 em{font-style:normal;color:var(--gold)}
@@ -148,7 +149,7 @@
   .l-foot{text-align:center;font-size:12px;color:var(--nardo-mid);padding:22px 24px 0}
 
   /* ---------- FRISSÍTÉS ---------- */
-  .upd{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 10px);transform:translate(-50%,-140%);background:var(--black);color:var(--cream);padding:8px 8px 8px 16px;border-radius:99px;font-size:14px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:transform .35s cubic-bezier(.2,.9,.25,1);z-index:60;white-space:nowrap}
+  .upd{position:fixed;left:50%;top:calc(max(env(safe-area-inset-top), var(--st)) + 10px);transform:translate(-50%,-140%);background:var(--black);color:var(--cream);padding:8px 8px 8px 16px;border-radius:99px;font-size:14px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:transform .35s cubic-bezier(.2,.9,.25,1);z-index:60;white-space:nowrap}
   .upd.show{transform:translate(-50%,0)}
   .upd button{background:var(--gold);color:var(--black);font-weight:600;padding:7px 14px;border-radius:99px}
   .ver{font-size:11px;color:#4a4c4c;margin-top:10px;letter-spacing:.02em}
@@ -670,7 +671,7 @@ document.addEventListener("touchend", e => {
 /* =========================================================
    9) FRISSÍTÉS – új verzió figyelése, hogy ne kelljen újratelepíteni
    ========================================================= */
-const APP_VERSION = "2026-10-13.4";
+const APP_VERSION = "2026-10-13.5";
 function hardReload(){ location.replace(location.pathname + "?v=" + Date.now()); }
 $("#upd-go").onclick = hardReload;
 $("#refresh").onclick = hardReload;
@@ -685,6 +686,18 @@ async function checkUpdate(){
 checkUpdate();
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
 if (/[?&]v=\d/.test(location.search)) history.replaceState(null, "", location.pathname);   // tiszta cím frissítés után
+
+/* iPhone főképernyős módban (átlátszó állapotsorral) a rendszer néha kisebb ablakot jelez, mint a kijelző,
+   és a felső biztonsági sávot sem adja meg. Ilyenkor kézzel számoljuk ki, hogy semmi ne csússzon a Dynamic Island alá. */
+function fixStandaloneInsets(){
+  const portrait = window.matchMedia("(orientation: portrait)").matches;
+  const gap = screen.height - window.innerHeight;
+  const st = (navigator.standalone && portrait && gap > 20 && gap < 120) ? gap : 0;
+  document.documentElement.style.setProperty("--st", st + "px");
+}
+fixStandaloneInsets();
+window.addEventListener("resize", fixStandaloneInsets);
+window.addEventListener("orientationchange", () => setTimeout(fixStandaloneInsets, 300));
 
 load(); renderMeters(); renderList(); startHero();
 </script>
